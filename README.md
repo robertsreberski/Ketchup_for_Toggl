@@ -4,15 +4,16 @@ Simple, offline-first, fully reactive pomodoro timer with Toggl integration. Nam
 ## Motivation
 Honestly app is being created to train my skills at developing in MVVM architecture, using newest Android Architecture Components with asynchronous solutions. Designing a timer was the most interesting idea of mine, because it completely tests the approach to reactive programming.
 
-## Status of works - 40%
-- [X] Connected **TimerFragment & OptionsFragment** to data
-- [ ] Connected **MainActivity & AccountFragment** to data
+## Status of works - 75%
+- [X] Connected **TimerFragment & OptionsFragment & MainActivity** to data
+- [ ] Connected **AccountFragment** to data
 - [X] Programmed timer functionality
-- [ ] Programmed project selection functionality
-- [ ] Created **TimeEntriesRepository**
+- [X] Programmed project selection functionality
+- [X] Created **TimeEntriesRepository**
 - [ ] Created **UserRepository**
 - [ ] Storing data in local database
 - [ ] Synchronizing data with Toggl
+- [ ] Create Login Screen & Implement login process
 
 
 ## Used libraries
