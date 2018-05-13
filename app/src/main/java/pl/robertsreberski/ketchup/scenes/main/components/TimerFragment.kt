@@ -71,11 +71,9 @@ class TimerFragment : ConnectedFragment<MainViewModel>() {
         pomodoroList.removeAllViews()
         if (pomodoros.isEmpty()) return
 
-        pomodoros.dropLast(1).forEach {
-            pomodoroList.addView(PomodoroItem(context!!, it.project, false))
+        pomodoros.forEach {
+            pomodoroList.addView(PomodoroItem(context!!, it.project, !it.finished))
         }
-
-        pomodoroList.addView(PomodoroItem(context!!, pomodoros.last().project, true))
     }
 
     private fun timeUpdater(elapsedTime: Long) {

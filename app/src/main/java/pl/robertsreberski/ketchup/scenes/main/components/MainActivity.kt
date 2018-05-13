@@ -1,6 +1,8 @@
 package pl.robertsreberski.ketchup.scenes.main.components
 
+import android.arch.lifecycle.Observer
 import android.arch.lifecycle.ViewModelProviders
+import android.graphics.Color
 import android.os.Bundle
 import android.support.v4.app.Fragment
 import android.support.v7.app.AppCompatActivity
@@ -11,6 +13,7 @@ import dagger.android.support.HasSupportFragmentInjector
 import kotlinx.android.synthetic.main.activity_main.*
 import pl.robertsreberski.ketchup.R
 import pl.robertsreberski.ketchup.factories.CustomViewModelFactory
+import pl.robertsreberski.ketchup.pojos.Project
 import pl.robertsreberski.ketchup.scenes.main.MainViewModel
 import javax.inject.Inject
 
@@ -36,6 +39,18 @@ class MainActivity : AppCompatActivity(), HasSupportFragmentInjector {
         if (savedInstanceState == null) {
             injectChildFragments()
         }
+
+        viewModel.requestSynchronization()
+        viewModel.activeProject.observe(this, Observer {
+            setBackgroundForActiveProject(it)
+        })
+    }
+
+    private fun setBackgroundForActiveProject(project: Project?) {
+        mainParent.setBackgroundColor(
+                if (project != null) Color.parseColor(project.color)
+                else Color.WHITE
+        )
     }
 
     private fun injectChildFragments() {

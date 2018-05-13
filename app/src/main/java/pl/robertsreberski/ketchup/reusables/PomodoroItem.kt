@@ -29,9 +29,7 @@ class PomodoroItem @JvmOverloads constructor(
     }
 
     init {
-        if (project != null) {
-            this.setCardBackgroundColor(Color.parseColor(project!!.color))
-        } else if (attrs != null) {
+        if (attrs != null) {
             val array = context.obtainStyledAttributes(attrs, R.styleable.PomodoroItem)
             val n = array.indexCount
 
@@ -62,6 +60,9 @@ class PomodoroItem @JvmOverloads constructor(
         params.height = 16.px
         this.layoutParams = params
 
+        if (project != null) {
+            this.setCardBackgroundColor(Color.parseColor(project!!.color))
+        }
     }
 
     val Int.dp: Int

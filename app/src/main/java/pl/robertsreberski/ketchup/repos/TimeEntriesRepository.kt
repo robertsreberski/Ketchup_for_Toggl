@@ -5,7 +5,9 @@ import io.reactivex.Single
 import io.reactivex.rxkotlin.subscribeBy
 import io.reactivex.rxkotlin.toFlowable
 import pl.robertsreberski.ketchup.pojos.Interval
+import pl.robertsreberski.ketchup.pojos.Project
 import pl.robertsreberski.ketchup.pojos.TimeEntry
+import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,6 +20,8 @@ import javax.inject.Singleton
 class TimeEntriesRepository @Inject constructor() {
 
     var _entries = listOf<TimeEntry>()
+    var _projects = listOf(Project(UUID.randomUUID().toString(), "Project 1", "#D81B60"), Project(UUID.randomUUID().toString(), "Project 2", "#E65100"))
+    var _activeProject: Project? = null
 
     private fun getPreferredPomodoroLength(): Long {
         return 25 * 60 * 1000
@@ -31,6 +35,21 @@ class TimeEntriesRepository @Inject constructor() {
         return _entries.count { entry -> entry.type == TimeEntry.Type.POMODORO && entry.finished } + 1
     }
 
+    fun setActiveProject(project: Project): Single<Boolean> {
+        return Single.create {
+            _activeProject = project
+
+            _entries = _entries.map {
+                if (it.type == TimeEntry.Type.POMODORO && !it.finished) {
+                    it.project = project
+                }
+                it
+            }
+
+            it.onSuccess(true)
+        }
+    }
+
     fun startPomodoroEntry(): Single<TimeEntry> {
         return Single.create {
             Utils().finishCurrentPauseIfRunning()
@@ -42,7 +61,7 @@ class TimeEntriesRepository @Inject constructor() {
                         type = TimeEntry.Type.POMODORO,
                         pomodoroNumber = getPomodoroNumber(),
                         plannedDuration = getPreferredPomodoroLength(),
-                        project = null
+                        project = _activeProject
                 )
 
             pomodoro.intervals.add(Interval())
@@ -113,7 +132,8 @@ class TimeEntriesRepository @Inject constructor() {
 
     val todaysPomodoros: Flowable<TimeEntry>
         get() = _entries.toFlowable().filter { it.type == TimeEntry.Type.POMODORO }
-
+    val userProjects: Flowable<Project>
+        get() = _projects.toFlowable()
 
     private inner class Utils {
         fun getNumberOfEntriesAfterLatestPomodoroIncluding(): Int {

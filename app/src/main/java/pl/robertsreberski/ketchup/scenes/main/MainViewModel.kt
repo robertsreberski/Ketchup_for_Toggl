@@ -25,19 +25,23 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
     @Inject
     lateinit var _executorService: ExecutorService
 
-    var _currentTimerTask: Future<*>? = null
+    private var _currentTimerTask: Future<*>? = null
 
     private var _todaysEntries: MutableLiveData<List<TimeEntry>> = MutableLiveData()
     private var _availableProjects: MutableLiveData<List<Project>> = MutableLiveData()
     private var _activeProject: MutableLiveData<Project> = MutableLiveData()
     private var _shouldShowOptions: MutableLiveData<Boolean> = MutableLiveData()
+    private var _shouldShowProjectList: MutableLiveData<Boolean> = MutableLiveData()
     private var _timer: Timer = Timer()
 
+    fun requestSynchronization() {
+        synchronizeProjectList()
+        synchronizePomodoroList()
+    }
 
     fun startTimer() {
         this.handleAsynchronous(timeRepo.startPomodoroEntry()) {
             stopTimerTask()
-
             applyEntryToTimer(it)
             startTimerTask()
         }
@@ -46,7 +50,6 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
     fun pauseTimer() {
         this.handleAsynchronous(timeRepo.pauseCurrentEntry()) {
             stopTimerTask()
-
             applyEntryToTimer(it)
             startTimerTask()
         }
@@ -54,13 +57,11 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
 
     fun stopTimer() {
         toggleOptionsView()
-
         finishTimeEntry()
     }
 
     fun restartTimer() {
         toggleOptionsView()
-
         this.handleAsynchronous(timeRepo.abandonCurrentEntry()) {
             if (it) startTimer()
         }
@@ -68,12 +69,24 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
 
     fun abandonTimer() {
         toggleOptionsView()
-
         finishTimeEntry(true)
     }
 
-    fun toggleOptionsView() {
-        _shouldShowOptions.postValue(!(_shouldShowOptions.value ?: false))
+    fun toggleOptionsView(show: Boolean = !(_shouldShowOptions.value ?: false)) {
+        _shouldShowOptions.postValue(show)
+    }
+
+    fun toggleProjectListView(show: Boolean = !(_shouldShowProjectList.value ?: false)) {
+        _shouldShowProjectList.postValue(show)
+    }
+
+    fun selectActiveProject(project: Project) {
+        timeRepo.setActiveProject(project).subscribeBy {
+            if (it) {
+                _activeProject.postValue(project)
+                toggleProjectListView(false)
+            }
+        }
     }
 
     private fun finishTimeEntry(abandon: Boolean = false) {
@@ -124,6 +137,12 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
         }
     }
 
+    private fun synchronizeProjectList() {
+        timeRepo.userProjects.toList().subscribeBy {
+            this._availableProjects.postValue(it)
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun <T> handleAsynchronous(task: Single<T>, callback: (T) -> Unit) {
         (task as Single<*>).subscribeOn(Schedulers.single()).subscribeBy {
@@ -146,6 +165,12 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
         get() = _todaysEntries
     val shouldShowOptions: LiveData<Boolean>
         get() = _shouldShowOptions
+    val availableProjects: LiveData<List<Project>>
+        get() = _availableProjects
+    val activeProject: LiveData<Project>
+        get() = _activeProject
+    val shouldShowProjectList: LiveData<Boolean>
+        get() = _shouldShowProjectList
 
     inner class TimerTask : Runnable {
 
