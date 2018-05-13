@@ -30,6 +30,7 @@ dependencies {
     implementation 'com.android.support:appcompat-v7:27.1.1'
     implementation 'com.android.support.constraint:constraint-layout:1.1.0'
 
+    implementation "org.jetbrains.anko:anko-commons:$anko_version"
     implementation "android.arch.lifecycle:extensions:$lifecycle_version"
     implementation 'io.reactivex.rxjava2:rxkotlin:2.2.0'
     implementation 'com.github.ajalt:timberkt:1.5.0'
