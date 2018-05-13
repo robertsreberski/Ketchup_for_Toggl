@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Ketchup</string>
+
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="state_paused">PAUSED</string>
+    <string name="state_running">RUNNING</string>
+    <string name="state_break">BREAK</string>
+
+    <string name="button_logout_text">Log out</string>
+    <string name="button_offline_text">Offline</string>
+
+
+    <string name="default_project_name">Sample project</string>
+
+</resources>
