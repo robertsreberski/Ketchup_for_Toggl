@@ -7,7 +7,9 @@ import android.view.View
 import android.view.ViewGroup
 import kotlinx.android.synthetic.main.fragment_timer.*
 import pl.robertsreberski.ketchup.R
+import pl.robertsreberski.ketchup.pojos.Project
 import pl.robertsreberski.ketchup.pojos.TimeEntry
+import pl.robertsreberski.ketchup.pojos.Timer
 import pl.robertsreberski.ketchup.reusables.PomodoroItem
 import pl.robertsreberski.ketchup.scenes.main.MainViewModel
 import pl.robertsreberski.ketchup.ui.ConnectedFragment
@@ -30,17 +32,17 @@ class TimerFragment : ConnectedFragment<MainViewModel>() {
 
 
     override fun connectViewToData() {
-        bindObserver(viewModel.elapsedTime, 0, this::timeUpdater)
-        bindObserver(viewModel.start, -1, this::startHourUpdater)
-        bindObserver(viewModel.estimatedEnd, -1, this::endHourUpdater)
+        bindObserver(viewModel.elapsedTime, Timer.NOT_SET, this::timeUpdater)
+        bindObserver(viewModel.start, Timer.NOT_SET, this::startHourUpdater)
+        bindObserver(viewModel.estimatedEnd, Timer.NOT_SET, this::endHourUpdater)
         bindObserver(viewModel.state, TimeEntry.Type.INACTIVE, this::stateUpdater)
 
-        bindObserver(viewModel.remaining, -1, this::remainingUpdater)
+        bindObserver(viewModel.remaining, Timer.NOT_SET, this::remainingUpdater)
         bindObserver(viewModel.todaysEntries, listOf(), this::entriesListUpdater)
     }
 
     private fun startHourUpdater(start: Long) {
-        if (start < 0) {
+        if (start == Timer.NOT_SET) {
             estimationLayout.visibility = View.GONE
             return
         }
@@ -50,11 +52,11 @@ class TimerFragment : ConnectedFragment<MainViewModel>() {
     }
 
     private fun endHourUpdater(end: Long) {
-        endHourText.text = if (end > 0) _hourFormatter.format(Date(end)) else "?"
+        endHourText.text = if (end != Timer.NOT_SET) _hourFormatter.format(Date(end)) else "?"
     }
 
     private fun remainingUpdater(remaining: Long) {
-        if (remaining < 0) {
+        if (remaining == Timer.NOT_SET) {
             remainingText.visibility = View.GONE
             return
         }
@@ -72,7 +74,7 @@ class TimerFragment : ConnectedFragment<MainViewModel>() {
         if (pomodoros.isEmpty()) return
 
         pomodoros.forEach {
-            pomodoroList.addView(PomodoroItem(context!!, it.project, !it.finished))
+            pomodoroList.addView(PomodoroItem(context!!, it.project ?: Project(), !it.finished))
         }
     }
 

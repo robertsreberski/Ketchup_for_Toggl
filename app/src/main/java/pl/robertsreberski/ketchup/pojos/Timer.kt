@@ -15,8 +15,7 @@ data class Timer(
         var estimatedEnd: MutableLiveData<Long> = MutableLiveData()
 ) {
     companion object {
-        const val NO_REMAINING_TIME: Long = -1
-        const val NO_START_HOUR: Long = -1
+        const val NOT_SET: Long = 0
     }
 
     var _state: TimeEntry.Type = TimeEntry.Type.INACTIVE
@@ -24,7 +23,7 @@ data class Timer(
             state.postValue(value)
             field = value
         }
-    var _start: Long = NO_START_HOUR
+    var _start: Long = NOT_SET
         set(value) {
             start.postValue(value)
             field = value
@@ -34,14 +33,16 @@ data class Timer(
             elapsed.postValue(value)
             field = value
         }
-    var _remaining: Long = NO_REMAINING_TIME
+    var _remaining: Long = NOT_SET
         set(value) {
             remaining.postValue(value)
             field = value
         }
-    var _estimatedEnd: Long = NO_START_HOUR
+    var _estimatedEnd: Long = NOT_SET
         set(value) {
             estimatedEnd.postValue(value)
             field = value
         }
+
+    var _plannedDuration: Long = 0
 }

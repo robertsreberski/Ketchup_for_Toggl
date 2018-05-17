@@ -1,10 +1,14 @@
 package pl.robertsreberski.ketchup.repos
 
+import io.reactivex.BackpressureStrategy
 import io.reactivex.Flowable
+import io.reactivex.Maybe
 import io.reactivex.Single
 import io.reactivex.rxkotlin.subscribeBy
-import io.reactivex.rxkotlin.toFlowable
-import pl.robertsreberski.ketchup.pojos.Interval
+import io.reactivex.subjects.PublishSubject
+import pl.robertsreberski.ketchup.local.IntervalsLocal
+import pl.robertsreberski.ketchup.local.ProjectsLocal
+import pl.robertsreberski.ketchup.local.TimeEntriesLocal
 import pl.robertsreberski.ketchup.pojos.Project
 import pl.robertsreberski.ketchup.pojos.TimeEntry
 import java.util.*
@@ -17,11 +21,18 @@ import javax.inject.Singleton
  * Package name: pl.robertsreberski.ketchup.repos
  */
 @Singleton
-class TimeEntriesRepository @Inject constructor() {
+class TimeEntriesRepository @Inject constructor(
+        val intervalsLocal: IntervalsLocal,
+        val timeEntriesLocal: TimeEntriesLocal,
+        val projectsLocal: ProjectsLocal
+) {
 
-    var _entries = listOf<TimeEntry>()
-    var _projects = listOf(Project(UUID.randomUUID().toString(), "Project 1", "#D81B60"), Project(UUID.randomUUID().toString(), "Project 2", "#E65100"))
-    var _activeProject: Project? = null
+    var _activeProjectPublisher = PublishSubject.create<Project>()
+    var _activeProject: Project = Project()
+        set(value) {
+            _activeProjectPublisher.onNext(value)
+            field = value
+        }
 
     private fun getPreferredPomodoroLength(): Long {
         return 25 * 60 * 1000
@@ -32,21 +43,31 @@ class TimeEntriesRepository @Inject constructor() {
     }
 
     private fun getPomodoroNumber(): Int {
-        return _entries.count { entry -> entry.type == TimeEntry.Type.POMODORO && entry.finished } + 1
+        return timeEntriesLocal.getLatestQuery(TimeEntry.Type.POMODORO, true)?.let {
+            it.pomodoroNumber + 1
+        } ?: 1
     }
 
-    fun setActiveProject(project: Project): Single<Boolean> {
-        return Single.create {
+    fun setActiveProject(project: Project = Project()): Single<Boolean> {
+        return Single.create<Boolean> {
             _activeProject = project
 
-            _entries = _entries.map {
-                if (it.type == TimeEntry.Type.POMODORO && !it.finished) {
-                    it.project = project
-                }
-                it
+            val pomodoro = timeEntriesLocal.getLatestQuery(TimeEntry.Type.POMODORO, false)
+            if (pomodoro != null) {
+                pomodoro.project = project
+                timeEntriesLocal.save(pomodoro)
             }
 
             it.onSuccess(true)
+        }
+    }
+
+    fun fetchCurrentEntry(): Maybe<TimeEntry> {
+        return Maybe.create<TimeEntry> {
+            val entry = timeEntriesLocal.getLatestQuery(null, false)
+
+            if (entry != null) it.onSuccess(entry)
+            else it.onComplete()
         }
     }
 
@@ -54,40 +75,36 @@ class TimeEntriesRepository @Inject constructor() {
         return Single.create {
             Utils().finishCurrentPauseIfRunning()
 
-            val notFinishedIndex = Utils().fetchIndexOfLastNotFinished()
+            val pomodoro = timeEntriesLocal.getLatestQuery(TimeEntry.Type.POMODORO, false)
+                    ?: TimeEntry(
+                            type = TimeEntry.Type.POMODORO.name,
+                            pomodoroNumber = getPomodoroNumber(),
+                            plannedDuration = getPreferredPomodoroLength(),
+                            project = _activeProject
+                    )
 
-            val pomodoro = if (notFinishedIndex > -1) _entries[notFinishedIndex] else
-                TimeEntry(
-                        type = TimeEntry.Type.POMODORO,
-                        pomodoroNumber = getPomodoroNumber(),
-                        plannedDuration = getPreferredPomodoroLength(),
-                        project = _activeProject
-                )
-
-            pomodoro.intervals.add(Interval())
-
-            _entries = if (notFinishedIndex > -1) _entries.mapIndexed { index, timeEntry ->
-                if (index == notFinishedIndex) pomodoro
-                else timeEntry
-            } else _entries.plus(pomodoro)
+            pomodoro.intervals.add(intervalsLocal.createDefault())
+            timeEntriesLocal.save(pomodoro)
 
             it.onSuccess(pomodoro)
         }
     }
 
+
     fun stopCurrentEntry(setFinished: Boolean): Single<Boolean> {
         return Single.create {
-            _entries = _entries.map {
-                if (it.finished) it
-                else {
-                    if (it.intervals.last().end == 0L)
-                        it.intervals[it.intervals.size - 1].end = System.currentTimeMillis()
 
-                    it.finished = setFinished
-                    it
+            var unfinished = timeEntriesLocal.listNotFinishedEntries()
+            unfinished = unfinished.map {
+                it.finished = setFinished
+                if (it.intervals.last()?.end == 0L) {
+                    val interval = it.intervals.last()!!
+                    intervalsLocal.finishInterval(interval)
                 }
+                it
             }
 
+            timeEntriesLocal.saveAll(unfinished)
             it.onSuccess(true)
         }
     }
@@ -96,11 +113,11 @@ class TimeEntriesRepository @Inject constructor() {
         return Single.create { parent ->
             this.stopCurrentEntry(false).subscribeBy {
                 val pause = TimeEntry(
-                        type = TimeEntry.Type.PAUSE
+                        type = TimeEntry.Type.PAUSE.name
                 )
 
-                pause.intervals.add(Interval())
-                _entries = _entries.plus(pause)
+                pause.intervals.add(intervalsLocal.createDefault())
+                timeEntriesLocal.save(pause)
 
                 parent.onSuccess(pause)
             }
@@ -109,49 +126,56 @@ class TimeEntriesRepository @Inject constructor() {
 
     fun abandonCurrentEntry(): Single<Boolean> {
         return Single.create {
-            val originalSize = _entries.size
-            val count = this.Utils().getNumberOfEntriesAfterLatestPomodoroIncluding()
-            _entries = _entries.dropLast(count)
+            val pomodoro = timeEntriesLocal.getLatestQuery(TimeEntry.Type.POMODORO, false)
+            pomodoro?.let { timeEntriesLocal.removeAllAfter(it, true) }
 
-            it.onSuccess(_entries.size < originalSize)
+            it.onSuccess(true)
         }
     }
 
     fun startBreakEntry(): Single<TimeEntry> {
-        return Single.create {
-            val breakEntry = TimeEntry(
-                    type = TimeEntry.Type.BREAK,
-                    plannedDuration = getPreferredBreakLength()
-            )
-            breakEntry.intervals.add(Interval())
+        return Single.create { parent ->
+            this.stopCurrentEntry(true).subscribeBy {
+                val breakEntry = TimeEntry(
+                        type = TimeEntry.Type.BREAK.name,
+                        plannedDuration = getPreferredBreakLength()
+                )
+                breakEntry.intervals.add(intervalsLocal.createDefault())
 
-            _entries = _entries.plus(breakEntry)
-            it.onSuccess(breakEntry)
+                timeEntriesLocal.save(breakEntry)
+                parent.onSuccess(breakEntry)
+            }
         }
     }
 
-    val todaysPomodoros: Flowable<TimeEntry>
-        get() = _entries.toFlowable().filter { it.type == TimeEntry.Type.POMODORO }
-    val userProjects: Flowable<Project>
-        get() = _projects.toFlowable()
+    val activeProject: Flowable<Project>
+        get() = _activeProjectPublisher.toFlowable(BackpressureStrategy.LATEST)
+    val todaysPomodoros: Flowable<List<TimeEntry>> = timeEntriesLocal.getPomodorosFlowableForToday(
+            Utils().getCurrentDateInMillis())
+    val userProjects: Flowable<List<Project>> = projectsLocal.getAllProjects()
+    var currentEntry: Flowable<List<TimeEntry>> = timeEntriesLocal.getCurrentEntry()
 
     private inner class Utils {
-        fun getNumberOfEntriesAfterLatestPomodoroIncluding(): Int {
-            return _entries.size - _entries.indexOfLast { it.type == TimeEntry.Type.POMODORO }
+
+        fun getCurrentDateInMillis(): Long {
+            val calendar = GregorianCalendar()
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+
+            return calendar.timeInMillis
         }
 
         fun finishCurrentPauseIfRunning() {
-            if (_entries.isEmpty() || _entries.last().type != TimeEntry.Type.PAUSE) return
+            var pause = timeEntriesLocal.getLatestQuery()
+            if (pause == null || pause.getConvertedType() != TimeEntry.Type.PAUSE) return
 
-            val pause = _entries.last()
-            pause.intervals[pause.intervals.size - 1].end = System.currentTimeMillis()
+            pause.intervals.add(intervalsLocal.createDefault())
             pause.finished = true
 
-            _entries = _entries.dropLast(1).plus(pause)
+            timeEntriesLocal.save(pause)
         }
 
-        fun fetchIndexOfLastNotFinished(): Int {
-            return _entries.indexOfLast { it.type == TimeEntry.Type.POMODORO && !it.finished }
-        }
     }
 }

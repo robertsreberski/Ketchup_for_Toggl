@@ -32,25 +32,20 @@ class MainActivity : AppCompatActivity(), HasSupportFragmentInjector {
 
         AndroidInjection.inject(this)
 
-
         viewModel = ViewModelProviders.of(this, viewModelFactory).get(MainViewModel::class.java)
 
-
         if (savedInstanceState == null) {
+            viewModel.activeProject.observe(this, Observer {
+                setBackgroundForActiveProject(it ?: Project())
+            })
             injectChildFragments()
         }
 
-        viewModel.requestSynchronization()
-        viewModel.activeProject.observe(this, Observer {
-            setBackgroundForActiveProject(it)
-        })
+        viewModel.attachSubscribers()
     }
 
-    private fun setBackgroundForActiveProject(project: Project?) {
-        mainParent.setBackgroundColor(
-                if (project != null) Color.parseColor(project.color)
-                else Color.WHITE
-        )
+    private fun setBackgroundForActiveProject(project: Project) {
+        mainParent.setBackgroundColor(Color.parseColor(project.color))
     }
 
     private fun injectChildFragments() {

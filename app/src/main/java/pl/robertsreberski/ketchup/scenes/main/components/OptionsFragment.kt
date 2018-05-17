@@ -93,7 +93,7 @@ class OptionsFragment : ConnectedFragment<MainViewModel>() {
             BREAK -> {
                 startButton.visibility = View.VISIBLE
                 pauseButton.visibility = View.GONE
-                optionsPanelCard.visibility = View.GONE
+                optionsPanelCard.visibility = View.VISIBLE
             }
             PAUSE -> {
                 startButton.visibility = View.VISIBLE

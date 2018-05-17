@@ -3,12 +3,12 @@ package pl.robertsreberski.ketchup.scenes.main
 import android.arch.lifecycle.LiveData
 import android.arch.lifecycle.MutableLiveData
 import android.arch.lifecycle.ViewModel
-import com.github.ajalt.timberkt.Timber
 import io.reactivex.Single
 import io.reactivex.rxkotlin.subscribeBy
 import io.reactivex.schedulers.Schedulers
 import pl.robertsreberski.ketchup.pojos.Project
 import pl.robertsreberski.ketchup.pojos.TimeEntry
+import pl.robertsreberski.ketchup.pojos.TimeEntry.Type.*
 import pl.robertsreberski.ketchup.pojos.Timer
 import pl.robertsreberski.ketchup.repos.TimeEntriesRepository
 import java.util.concurrent.ExecutorService
@@ -34,10 +34,6 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
     private var _shouldShowProjectList: MutableLiveData<Boolean> = MutableLiveData()
     private var _timer: Timer = Timer()
 
-    fun requestSynchronization() {
-        synchronizeProjectList()
-        synchronizePomodoroList()
-    }
 
     fun startTimer() {
         this.handleAsynchronous(timeRepo.startPomodoroEntry()) {
@@ -84,6 +80,7 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
         timeRepo.setActiveProject(project).subscribeBy {
             if (it) {
                 _activeProject.postValue(project)
+                attachSubscribers()
                 toggleProjectListView(false)
             }
         }
@@ -96,12 +93,16 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
         ) {
             if (it) {
                 stopTimerTask()
-
-                _timer._state = TimeEntry.Type.INACTIVE
-                _timer._remaining = Timer.NO_REMAINING_TIME
-                _timer._start = Timer.NO_START_HOUR
-                _timer._elapsed = 0
+                applyEntryToTimer(TimeEntry(type = INACTIVE.name))
             }
+        }
+    }
+
+    private fun startBreakEntry() {
+        this.handleAsynchronous(timeRepo.startBreakEntry()) {
+            stopTimerTask()
+            applyEntryToTimer(it)
+            startTimerTask()
         }
     }
 
@@ -114,40 +115,45 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
     }
 
     private fun applyEntryToTimer(entry: TimeEntry) {
-        _timer._state = entry.type
+        _timer._state = entry.getConvertedType()
 
-        when (_timer._state) {
-            TimeEntry.Type.POMODORO -> {
-                _timer._start = entry.getActualStartTime()
-                _timer._estimatedEnd = entry.getEstimatedEnd()
-                _timer._elapsed = entry.getElapsedTime()
-            }
-            TimeEntry.Type.BREAK, TimeEntry.Type.PAUSE -> {
-                _timer._start = entry.getActualStartTime()
-                _timer._estimatedEnd = TimeEntry.NO_ESTIMATED_END
-                _timer._elapsed = entry.getElapsedTime()
-            }
-            TimeEntry.Type.INACTIVE -> Timber.e { "There shouldn't be any conversion during inactive state!" }
-        }
+        val check = entry.getStartTime()
+        _timer._start = entry.getStartTime()
+        _timer._elapsed = entry.getElapsedTime()
+        _timer._plannedDuration = entry.plannedDuration
+
+        _timer._estimatedEnd = if (_timer._state == POMODORO || _timer.state == BREAK)
+            entry.getEstimatedEnd() else TimeEntry.NO_ESTIMATED_END
     }
 
-    private fun synchronizePomodoroList() {
-        timeRepo.todaysPomodoros.toList().subscribeBy {
+    fun attachSubscribers() {
+        timeRepo.todaysPomodoros.subscribe {
             this._todaysEntries.postValue(it)
         }
-    }
-
-    private fun synchronizeProjectList() {
-        timeRepo.userProjects.toList().subscribeBy {
+        timeRepo.userProjects.subscribe {
             this._availableProjects.postValue(it)
         }
+        timeRepo.currentEntry.subscribe {
+            if (it.isEmpty()) {
+                stopTimerTask()
+                applyEntryToTimer(TimeEntry(type = INACTIVE.name))
+            } else {
+                stopTimerTask()
+                applyEntryToTimer(it.last())
+                startTimerTask()
+            }
+        }
+        timeRepo.activeProject.subscribe {
+            _activeProject.postValue(it)
+        }
+
+        timeRepo.setActiveProject()
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun <T> handleAsynchronous(task: Single<T>, callback: (T) -> Unit) {
-        (task as Single<*>).subscribeOn(Schedulers.single()).subscribeBy {
+        (task as Single<*>).subscribeOn(Schedulers.trampoline()).subscribeBy {
             callback(it as T)
-            this.synchronizePomodoroList()
         }
     }
 
@@ -175,9 +181,7 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
     inner class TimerTask : Runnable {
 
         private var _elapsed: Long = _timer._elapsed
-        private val _start: Long = _timer._start
-        private val _end: Long = _timer._estimatedEnd
-        private val _limit: Long = _end - _start
+        private val _limit: Long = _timer._plannedDuration
 
 
         override fun run() {
@@ -196,7 +200,8 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
                 }
             }
 
-            finishTimeEntry()
+            if (_timer._state == POMODORO) startBreakEntry()
+            else finishTimeEntry()
         }
 
         private fun isEntryLimited() = _limit > 0

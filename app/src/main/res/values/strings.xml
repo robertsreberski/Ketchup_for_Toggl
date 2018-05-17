@@ -12,5 +12,6 @@
 
 
     <string name="default_project_name">Sample project</string>
+    <string name="db_name">KETCHUP_DATABASE</string>
 
 </resources>

@@ -4,15 +4,16 @@ Simple, offline-first, fully reactive pomodoro timer with Toggl integration. Nam
 ## Motivation
 Honestly app is being created to train my skills at developing in MVVM architecture, using newest Android Architecture Components with asynchronous solutions. Designing a timer was the most interesting idea of mine, because it completely tests the approach to reactive programming.
 
-## Status of works - 75%
+## Status of works - 80%
 - [X] Connected **TimerFragment & OptionsFragment & MainActivity** to data
 - [ ] Connected **AccountFragment** to data
 - [X] Programmed timer functionality
 - [X] Programmed project selection functionality
-- [X] Created **TimeEntriesRepository**
-- [ ] Created **UserRepository**
-- [ ] Storing data in local database
-- [ ] Synchronizing data with Toggl
+- [X] Created **TimeEntriesRepository** & Unit Tests
+- [ ] Created **UserRepository** & Unit Tests
+- [X] Storing data in local database
+- [ ] Synchronizing data with Toggl (with Job Schedulers)
+- [ ] Create notifications about pomodoro status
 - [ ] Create Login Screen & Implement login process
 
 
@@ -20,11 +21,12 @@ Honestly app is being created to train my skills at developing in MVVM architect
 * **Android Architecture Components**
   * **LiveData** - Great, lifecycle-aware mechanism of exchanging data ViewModel -> View 
   * **ViewModel** - Going in tandem with LiveData, provides us completely dependency-free View classes
-  * **Room** - I feel a need to try this library as a contrary to Firebase and Realm noSQL databases
+* **Realm** - For flexible and efficient local data persistence
 * **Dagger 2** - App consists of fully injectable modules guided by KISS principle
 * **RxKotlin (RxJava 2)** - Used in Repositories Layer allows me to fetch all informations without interrupting other threads
 * **Timber** - Providing simple logs in development version
 * **Retrofit** - It is always my first choice when it comes to fetching data from REST services
+* **Android Job** - Evernote library that creates abstract layer on various Android Schedulers (depending on Android version)
 
 ## License
 This project is licensed under the **MIT License**. Feel free to use the code to make it even better. I also would be excited to hear about the effects.
