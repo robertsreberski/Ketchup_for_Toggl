@@ -80,7 +80,6 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
         timeRepo.setActiveProject(project).subscribeBy {
             if (it) {
                 _activeProject.postValue(project)
-                attachSubscribers()
                 toggleProjectListView(false)
             }
         }
@@ -117,7 +116,6 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
     private fun applyEntryToTimer(entry: TimeEntry) {
         _timer._state = entry.getConvertedType()
 
-        val check = entry.getStartTime()
         _timer._start = entry.getStartTime()
         _timer._elapsed = entry.getElapsedTime()
         _timer._plannedDuration = entry.plannedDuration
@@ -139,15 +137,15 @@ class MainViewModel @Inject constructor(val timeRepo: TimeEntriesRepository) : V
                 applyEntryToTimer(TimeEntry(type = INACTIVE.name))
             } else {
                 stopTimerTask()
-                applyEntryToTimer(it.last())
+                applyEntryToTimer(it.first())
                 startTimerTask()
             }
         }
-        timeRepo.activeProject.subscribe {
-            _activeProject.postValue(it)
-        }
 
-        timeRepo.setActiveProject()
+        timeRepo.activeProject.subscribe {
+            if (it.isEmpty()) _activeProject.postValue(Project())
+            else _activeProject.postValue(it.first())
+        }
     }
 
     @Suppress("UNCHECKED_CAST")

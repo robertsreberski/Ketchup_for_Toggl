@@ -1,11 +1,9 @@
 package pl.robertsreberski.ketchup.repos
 
-import io.reactivex.BackpressureStrategy
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Single
 import io.reactivex.rxkotlin.subscribeBy
-import io.reactivex.subjects.PublishSubject
 import pl.robertsreberski.ketchup.local.IntervalsLocal
 import pl.robertsreberski.ketchup.local.ProjectsLocal
 import pl.robertsreberski.ketchup.local.TimeEntriesLocal
@@ -27,13 +25,6 @@ class TimeEntriesRepository @Inject constructor(
         val projectsLocal: ProjectsLocal
 ) {
 
-    var _activeProjectPublisher = PublishSubject.create<Project>()
-    var _activeProject: Project = Project()
-        set(value) {
-            _activeProjectPublisher.onNext(value)
-            field = value
-        }
-
     private fun getPreferredPomodoroLength(): Long {
         return 25 * 60 * 1000
     }
@@ -48,9 +39,15 @@ class TimeEntriesRepository @Inject constructor(
         } ?: 1
     }
 
-    fun setActiveProject(project: Project = Project()): Single<Boolean> {
+    fun setActiveProject(project: Project?): Single<Boolean> {
         return Single.create<Boolean> {
-            _activeProject = project
+
+            var modified = projectsLocal.getAllProjects().map {
+                it.active = project?.id == it.id
+                it
+            }
+
+            projectsLocal.saveAll(modified)
 
             val pomodoro = timeEntriesLocal.getLatestQuery(TimeEntry.Type.POMODORO, false)
             if (pomodoro != null) {
@@ -80,7 +77,7 @@ class TimeEntriesRepository @Inject constructor(
                             type = TimeEntry.Type.POMODORO.name,
                             pomodoroNumber = getPomodoroNumber(),
                             plannedDuration = getPreferredPomodoroLength(),
-                            project = _activeProject
+                            project = projectsLocal.getActiveProject()
                     )
 
             pomodoro.intervals.add(intervalsLocal.createDefault())
@@ -148,11 +145,11 @@ class TimeEntriesRepository @Inject constructor(
         }
     }
 
-    val activeProject: Flowable<Project>
-        get() = _activeProjectPublisher.toFlowable(BackpressureStrategy.LATEST)
+    val activeProject: Flowable<List<Project>>
+        get() = projectsLocal.getActiveProjectFlowable()
     val todaysPomodoros: Flowable<List<TimeEntry>> = timeEntriesLocal.getPomodorosFlowableForToday(
             Utils().getCurrentDateInMillis())
-    val userProjects: Flowable<List<Project>> = projectsLocal.getAllProjects()
+    val userProjects: Flowable<List<Project>> = projectsLocal.getAllProjectsFlowable()
     var currentEntry: Flowable<List<TimeEntry>> = timeEntriesLocal.getCurrentEntry()
 
     private inner class Utils {

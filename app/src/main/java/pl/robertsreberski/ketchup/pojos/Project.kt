@@ -14,5 +14,6 @@ open class Project(
         open var toggleId: Long = -1,
         open var name: String = "(no project)",
         open var color: String = "#546E7A",
+        open var active: Boolean = false,
         open var exists: Boolean = true
 ) : RealmObject()

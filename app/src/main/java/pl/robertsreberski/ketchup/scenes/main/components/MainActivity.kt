@@ -35,13 +35,14 @@ class MainActivity : AppCompatActivity(), HasSupportFragmentInjector {
         viewModel = ViewModelProviders.of(this, viewModelFactory).get(MainViewModel::class.java)
 
         if (savedInstanceState == null) {
-            viewModel.activeProject.observe(this, Observer {
-                setBackgroundForActiveProject(it ?: Project())
-            })
+
             injectChildFragments()
         }
 
         viewModel.attachSubscribers()
+        viewModel.activeProject.observe(this, Observer {
+            setBackgroundForActiveProject(it ?: Project())
+        })
     }
 
     private fun setBackgroundForActiveProject(project: Project) {
